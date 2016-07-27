@@ -1,2 +1,3 @@
-# IntelliMet
-Serviço de previsão do tempo que utiliza somente Deep Learning
+Este projeto contém um baixador de imagens do INMET.
+
+O uso é interativo e contém mensagens explicativas.
