@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # Autor: Gustavo Fernandes dos Santos
 # Email: gfdsantos@inf.ufpel.edu.br
-# versão 0.95
+# versão 1.01
 
 # Área de carregamento de módulos
 from datetime import datetime
@@ -10,6 +10,7 @@ from subprocess import call
 from calendar import monthrange
 import os
 import sys
+import urllib.request as request
 
 class BaixadorGOES:
 	GOES_topo          = "http://www.inmet.gov.br/projetos/cga/capre/sepra/GEO/GOES12/AMERICA_SUL/AS12_TN"
@@ -17,12 +18,21 @@ class BaixadorGOES:
 	GOES_infravermelho = "http://www.inmet.gov.br/projetos/cga/capre/sepra/GEO/GOES12/AMERICA_SUL/AS12_IV"
 	GOES_vapor         = "http://www.inmet.gov.br/projetos/cga/capre/sepra/GEO/GOES12/AMERICA_SUL/AS12_VA"
 
+	GOES_BRASIL_visivel = "http://www.inmet.gov.br/projetos/sepis/GOES12/REGIOES/BRASIL/br_VI"
+	GOES_BRASIL_infravermelho = "http://www.inmet.gov.br/projetos/sepis/GOES12/REGIOES/BRASIL/br_IV"
+	GOES_BRASIL_vapor = "http://www.inmet.gov.br/projetos/sepis/GOES12/REGIOES/BRASIL/br_VA"
+	GOES_BRASIL_vapor_realc = "http://www.inmet.gov.br/projetos/sepis/GOES12/REGIOES/BRASIL/br_VPR"
+	GOES_BRASIL_topo = "http://www.inmet.gov.br/projetos/sepis/GOES12/REGIOES/BRASIL/br_TN"
+
 	SE_RECUPEROU       = False
 	TRANSF15PARA14 	   = False
 	INTERVALO          = 30
 	MIN_SUP            = 30
 	MIN_INF            = 0
 	MODO               = "topo"
+	REGIAO			   = "brasil"
+
+	LISTA_MINUTOS      = []
 
 	def __init__(self):
 		self.identidade = 0
@@ -32,7 +42,7 @@ class BaixadorGOES:
 		"""
 		Imprime as informaçoes do desenvolvedor
 		"""
-		call(["clear"])
+		#call(["clear"])
 		print("    -----------------INFORMAÇÕES-----------------")
 		print("[*] Baixador de imagens do INMET. v0.95")
 		print("[*] Autor: Gustavo Fernandes dos Santos")
@@ -53,6 +63,8 @@ class BaixadorGOES:
 	def print_uso_batch(self):
 		print("""[*] Modo de uso em batch:
 	    $ ./baixar_goes.py <lista de argumentos>
+		ou
+		$ python baixar_goes.py <lista de argumentos>
 
 	    Os argumentos do programa são processados por um parser, configurando os parâmetros do 
 	    script.
@@ -107,6 +119,7 @@ class BaixadorGOES:
 	    [+] Pronto.""")
 
 
+	
 	@classmethod
 	def print_erro(self):
 		print("[-] Erro na inicializaçao.")
@@ -117,34 +130,32 @@ class BaixadorGOES:
 	@classmethod
 	def testa_conexao(self):
 		print("[!] Estabelecendo conexao...")
-		programa = """wget -q --spider http://www.inmet.gov.br
-
-						if [ $? -eq 0 ]; then
-	    					echo "[+] Online"
-						else
-	    					echo "[-] Offline"
-						fi"""
-
-		script = open("script.sh", "w")
-		script.write(programa)
-		script.close()
-		res = call(["sh", "script.sh"])
-		call(["rm", "script.sh"])
-		if res == "[-] Offline":
+		try:
+			url_open = request.urlopen("http://www.inmet.gov.br")
+			if url_open.getcode() != 200:
+				sys.exit("[-] Sem conexão.")
+		except:
 			sys.exit("[-] Sem conexão.")
+
+		
 
 
 	@classmethod
 	def imagem_online(self, link):
 		print("[!] Testando o link:")
 		print("    " + link)
-		c = call(["wget", "-q", "--spider", link])
-		if c != 0:
+
+		try:
+			url_open = request.urlopen(link)
+			if url_open.getcode() == 200:
+				print("[+] Imagen online.")
+				return True
+			else:
+				print("[-] Imagem offline.")
+				return False
+		except:
 			print("[-] Imagem offline.")
 			return False
-		else:
-			print("[+] Imagen online.")
-			return True
 
 
 	def retrocede2(self, ano, mes, dia, hora, minuto):
@@ -220,14 +231,27 @@ class BaixadorGOES:
 
 		print("[+] Gerando links...")
 
-		if self.MODO == "topo":
-			preLink = self.GOES_topo
-		elif self.MODO == "visivel":
-			preLink = self.GOES_visivel
-		elif self.MODO == "infravermelho":
-			preLink = self.GOES_infravermelho
-		elif self.MODO == "vapor":
-			preLink = self.GOES_vapor
+		if self.REGIAO == "america_sul":
+			if self.MODO == "topo":
+				preLink = self.GOES_topo
+			elif self.MODO == "visivel":
+				preLink = self.GOES_visivel
+			elif self.MODO == "infravermelho":
+				preLink = self.GOES_infravermelho
+			elif self.MODO == "vapor":
+				preLink = self.GOES_vapor
+
+		if self.REGIAO == "brasil":
+			if self.MODO == "topo":
+				preLink = self.GOES_BRASIL_topo
+			elif self.MODO == "visivel":
+				preLink = self.GOES_BRASIL_visivel
+			elif self.MODO == "infravermelho":
+				preLink = self.GOES_BRASIL_infravermelho
+			elif self.MODO == "vapor":
+				preLink = self.GOES_BRASIL_vapor
+			elif self.MODO == "vapor_realc":
+				preLink = self.GOES_BRASIL_vapor_realc
 
 		links = []
 		sano = ""
@@ -287,13 +311,22 @@ class BaixadorGOES:
 	@classmethod
 	def baixar_imagens(self, links):
 		print("[+] Baixando imagens...\n")
-		if not os.path.isdir("imagens/"):
-			call(["mkdir", "imagens"])
 
 		r = []
 		for link in links:
-			n = call(["wget", "-q", "--show-progress", link])
-			r.append(n)
+			imagem_nome = link.split('/')[-1]
+			uopen = request.urlopen(link)
+			if uopen.getcode() != 200:
+				r.append(uopen.getcode())
+			else:
+				meta = uopen.getheaders()
+				tamanho = int(meta[5][1])
+				print("[!] Baixando {} de {} bytes".format(imagem_nome, tamanho))
+				with uopen as resp, open(imagem_nome, 'wb') as imagem_saida:
+					dados = resp.read()
+					imagem_saida.write(dados)
+				
+				r.append(uopen.getcode())
 
 		return r
 
@@ -329,12 +362,12 @@ class BaixadorGOES:
 		links = BaixadorGOES.gerar_links(arg)
 		r = BaixadorGOES.baixar_imagens(links)
 		for i in r:
-			if i != 0:
+			if i != 200:
 				print("[-] A imagem referente ao horario requisitado não existe.")
 				BaixadorGOES.testa_conexao()
 				links = BaixadorGOES.gerar_links(arg)
 				r = BaixadorGOES.baixar_imagens(links)
-		BaixadorGOES.mover_imagens()
+		#BaixadorGOES.mover_imagens()
 
 
 	@classmethod
@@ -372,9 +405,16 @@ class BaixadorGOES:
 					BaixadorGOES.INTERVALO = int(argumentos.pop())
 					BaixadorGOES.MIN_SUP = 60 - BaixadorGOES.INTERVALO
 				elif head == "--min_inf":
-					self.MIN_INF = int(argumentos.pop())
+					BaixadorGOES.MIN_INF = int(argumentos.pop())
 				elif head == "--min_sup":
-					self.MIN_SUP = int(argumentos.pop())
+					BaixadorGOES.MIN_SUP = int(argumentos.pop())
+				elif head == "--regiao": # brasil ou america_sul
+					BaixadorGOES.REGIAO = argumentos.pop()
+					if self.REGIAO != "brasil" and self.REGIAO != "america_sul":
+						print('[-] Erro ao processar os argumentos')
+						print('[*] Execute novamente utilizando o parâmetro -ajuda')
+						print('    Exemplo: $ ./baixar_goes.py -ajuda')
+						sys.exit(0)
 				elif head == "--modo":
 					BaixadorGOES.MODO = argumentos.pop()
 					if self.MODO != "topo" and self.MODO != "infravermelho" and self.MODO != "vapor" and self.MODO != "visivel":
